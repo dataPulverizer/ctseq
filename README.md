@@ -1,10 +1,10 @@
 ## Introduction
 
-<a href="https://dlang.org/articles/ctarguments.html" target="_blank">Compile time sequences</a> in D are insane, not insane "crazy" but insanely interesting. One of the selling points of D is that it takes compile time programming in C++ to another level, where templates in C++ were a 'happy?' accident, in D they were purposely built into the language along with other generic and meta-programming tools. To highlight this aspect of the D language, we will implement a selection of templates to manipulate compile time sequences of types, only the `text` function from the standard library in the <a href="https://dlang.org/phobos/std_conv.html" target="_blank">`std.conv`</a> module will be imported which is for concatenating text, we will build everything else including two items from the <a href="https://dlang.org/phobos/std_meta.html" target="_blank">`std.meta`</a> module which they are easy one-liners.
+<a href="https://dlang.org/articles/ctarguments.html" target="_blank">Compile time sequences</a> in D are insane. Not insane "crazy" but insanely interesting. One of the selling points of D is that it takes compile time programming in C++ to another level; where templates in C++ were a 'happy?' accident, in D they were purposely built into the language along with other generic and meta-programming tools. To highlight this aspect of the D language, we will implement a selection of templates to manipulate compile time sequences of types. Other than the `text` function from the standard library in the <a href="https://dlang.org/phobos/std_conv.html" target="_blank">`std.conv`</a> module and two one-liners from the <a href="https://dlang.org/phobos/std_meta.html" target="_blank">`std.meta`</a> module, we will build everything else ourselves.
 
-This article builds on the concepts of a <a href="../reading-idx-files-in-d/" target="_blank">previous article</a> on compile time reads of IDX files in D but here the focus is on compile time sequences, and introducing some new tools and concepts. Some desireable features of compile time sequences are:
+This article builds on the concepts of a <a href="../reading-idx-files-in-d/" target="_blank">previous article</a> that is about reading IDX files at compile time in D. The focus of this article is compile time sequences, as well as introducing new tools and concepts. Some desirable features of compile time sequences are:
 
-1. Indexing - selecting items using a (numerical) index. This is built-in, we don't need to do anything to get this functionality.
+1. Indexing - selecting items using a (numerical) index. This is built-in; we don't need to do anything to get this functionality.
 2. Append, Prepend, and Concatenate - we will see that these are implicit in the definition of compile time sequences.
 3. Removing item(s).
 4. Inserting item(s).
@@ -14,21 +14,21 @@ Good sources for further information of the concepts discussed here are given in
 * D's <a href="https://dlang.org/spec/spec.html" target="_blank">language reference.</a>
 * <a href="http://ddili.org/ders/d.en/index.html" target="_blank">"Programming in D"</a> book by Ali Çehreli
 * Documentation of the <a href="https://dlang.org/phobos/std_meta.html" target="_blank">`std.meta`</a> package.
-* The <a href="https://github.com/dlang/phobos/blob/master/std/meta.d" target="_blank"> `std.meta`</a> package on GitHub. I don't routinely recommend reading actual code libraries and maybe I should do that more, but you can learn a lot about how to write compile time code in D by reading `std.meta`.
+* The <a href="https://github.com/dlang/phobos/blob/master/std/meta.d" target="_blank"> `std.meta`</a> package on GitHub. I don't routinely recommend reading source code of existing libraries and maybe I should do that more, but you can learn a lot about how to write compile time code in D by reading `std.meta`.
 
 ## Template abbreviations and preliminaries
 
-There are lots of templatable data types and commands in D and it's easy to over-look some. These include:
+There are lots of templatable data types and commands in D and it's easy to overlook some. These include:
 
 * Functions.
-* Structs, Classes, and Interfaces.
+* Structs, classes, and interfaces.
 * Enumerations.
 * Alias - used for type aliasing.
 * Template expressions. Templates in D are an important part of compile time programming, as are `static if`, ` static foreach` loops (covered in the <a href="../reading-idx-files-in-d/" target="_blank">previous article</a>), and recursion. You could say C++ templates are also powerful, but remember that templates in D were **not incidental**, they were designed into the language from the beginning, they are there on purpose, very powerful, and easy to use. They are also prettier than C++ templates.
 
 ### Function template abbreviations
 
-We won't be creating any template functions in these compile time sequences, however for completeness the example below shows a template function for the inverse square law for <a href="https://en.wikipedia.org/wiki/Newton%27s_law_of_universal_gravitation" target="_blank">gravitational attraction force between two bodies</a>:
+We won't be creating any function templates in these compile time sequences, however for completeness the example below shows a function template for the inverse square law for <a href="https://en.wikipedia.org/wiki/Newton%27s_law_of_universal_gravitation" target="_blank">gravitational attraction force between two bodies</a>:
 
 ```d
 // Longhand
@@ -36,7 +36,7 @@ template GravitationalAttraction(T)
 {
   auto GravitationalAttraction(T G, T m1, T m2, T r)
   {
-    return (G*m1*m2)/(r^^2); //the two carets are not a mistake
+    return (G*m1*m2)/(r^^2); // the two carets are not a mistake
   }
 }
 
@@ -46,15 +46,16 @@ auto GravitationalAttraction(T)(T G, T m1, T m2, T r)
   return (G*m1*m2)/(r^^2);
 }
 ```
-*These two forms are treated exactly the same by the compiler therefore you can only include one of them in your script.*
+
+*These two forms are treated exactly the same by the compiler. Therefore, you can only include one of them in your script.*
 
 An example call for the template would be:<br>`auto f = GravitationalAttraction!(float)(G, m1, m2, r);`
 
 *Note that D has type inference for templates but this topic will not be covered here.*
 
-### Structs classes and interfaces
+### Structs, classes, and interfaces
 
-Structs classes and interface template abbreviations work in the same way, so I'll only show an example for a `struct`:
+Structs, classes, and interface template abbreviations work in the same way, so I'll only show an example for a `struct`:
 
 ```d
 // Longhand
@@ -82,7 +83,7 @@ The template struct can be called using:<br>`auto planet = Planet!(double)(mass,
 
 ### Enumerations
 
-<a href="https://dlang.org/phobos/std_traits.html" target="_blank">Traits</a> in D are templates that *"extract information about types and symbols at compile time"*, often these are compile time predicates and enumeration templates are an opportunity to show how very simple versions of these are contructed. Suppose we wanted to restrict the template types in the functions and struts shown previously to floating point `T`, `float`, `double`, and `real`? A compile time predicate is exactly what you need:
+<a href="https://dlang.org/phobos/std_traits.html" target="_blank">Traits</a> in D are templates that *"extract information about types and symbols at compile time"*, frequently used as compile time predicates. Enumeration templates are an opportunity to show how simple versions of these can be constructed. Suppose we want to restrict the template type `T` in the functions and struts shown previously to floating point types `float`, `double`, and `real`. A compile time predicate is exactly what you need:
 
 ```d
 // Longhand
@@ -94,7 +95,7 @@ template isFloat(T)
 enum bool isFloat(T) = is(T == float) || is(T == double) || is(T == real);
 ```
 
-Notice that you can not simply write `T == float` for types, you need to use the `is()` operator to obtain a bool from that statement. This enum can be applied to all the previous templates. For functions:
+Notice that you can not simply write `T == float` for types; you need to use the `is()` expression to obtain a `bool`. This enum can be used with the previous templates. For functions:
 
 ```d
 // Longhand
@@ -144,7 +145,7 @@ Restricting templates in this way is how we create **template constraints** in D
 
 ### The alias keyword
 
-The usual use for the `alias` keyword is for aliases of a type. For example and alias for a pointer type:
+A common use for the `alias` keyword is aliasing a type. For example, here is an alias for a pointer type:
 
 ```
 // Longhand
@@ -155,7 +156,6 @@ template P(T)
 // Shorthand
 alias P(T) = T*;
 ```
-
 
 to use it do `P!(real) x;`
 
@@ -168,14 +168,13 @@ to use it do `P!(real) x;`
 alias AliasSeq(T...) = T;
 ```
 
-we will also borrow the implementation of `Nothing` from the same module though this is not available for being imported (package only visibility):
+We will also borrow the implementation of `Nothing` from the same module as it is not available for being imported (because it has the `package` visibility):
 
 ```d
 alias Nothing = AliasSeq!();
 ```
 
 That's it!
-
 
 ## Indexing compile time sequences
 
@@ -185,7 +184,7 @@ To create a sequence of types we simply do:
 alias tList = AliasSeq!(bool, string, ubyte, short, ushort);
 ```
 
-`pragma`s interact directly with the compiler, and we can print a message at compile time using `pragma(msg, "The message, ", "then another message ...")` for instance:
+`pragma`s interact directly with the compiler; for instance, we can print a message at compile time by using `pragma(msg, "The message, ", "then another message ...")`:
 
 ```d
 pragma(msg, "Input types: ", tList);
@@ -197,7 +196,7 @@ outputs:
 Input types: (bool, string, ubyte, short, ushort)
 ```
 
-We can access individual elements using for instance `tList[1]` and carry out slice operations using `tList[1..3]` so the following:
+We can access individual elements of a sequence for instance by `tList[1]` and carry out slice operations for instance by `tList[1..3]`:
 
 ```d
 pragma(msg, "Single index selection: ", tList[1]);
@@ -211,14 +210,14 @@ Single index selection: string
 Slice selection: (string, ubyte)
 ```
 
-## Append, prepend, and concatenating type lists
+## Appending, prepending, and concatenating type lists
 
-One important thing about `AliasSeq(T...)` typelists is that they are not a traditional "container"; when they are input into templates they kind of just "spread out" and become like separate arguments of a function as if they were not contained but inputted in separately. We'll see what that means later but one consequence is there is no need to define operations for Append, Prepend, and Concatenate because it's already implied in the definition. Just put typelists together and that's it:
+One important aspect of `AliasSeq(T...)` typelists is that they are not a traditional "container"; when they are input into templates they kind of just "expand" and become like separate arguments of a function as if they were not contained but inputted in separately. We'll see what that means later but one consequence is there is no need to define operations for Append, Prepend, and Concatenate because it's already implied in the definition. Just put typelists together and that's it.
 
 
 ### Append
 
-Here the type `ulong` is appended to the previously created typelist:
+Here, a new typelist is defined by appending `ulong` to the previously defined typelist:
 
 ```d
 alias appended = AliasSeq!(tList, ulong);
@@ -233,11 +232,11 @@ Appended list: (bool, string, ubyte, short, ushort, ulong)
 
 ### Prepend
 
-Here the type `ulong` is preprended to the previously created typelist
+Here, a new typelist is defined by prepending `ulong` to the previously defined typelist:
 
 ```d
-alias preprended = AliasSeq!(ulong, tList);
-pragma(msg, "Prepended list: ", preprended, "\n");
+alias prepended = AliasSeq!(ulong, tList);
+pragma(msg, "Prepended list: ", prepended, "\n");
 ```
 Output:
 ```d
@@ -246,16 +245,16 @@ Prepended list: (ulong, bool, string, ubyte, short, ushort)
 
 ### Concatenate
 
-Here two typelists are concatenated ...
+Here, two typelists are concatenated:
 
 ```d
 alias concat = AliasSeq!(tList, AliasSeq!(int, long, ulong));
-pragma(msg, "Cocatenated list: ", concat);
+pragma(msg, "Concatenated list: ", concat);
 ```
 
 Output:
 ```d
-Cocatenated list: (bool, string, ubyte, short, ushort, int, long, ulong)
+Concatenated list: (bool, string, ubyte, short, ushort, int, long, ulong)
 ```
 
 Notice how they are now one typelist.
@@ -264,7 +263,7 @@ Notice how they are now one typelist.
 
 ### Replacing a single item by index
 
-The code below shows the implementation for the internals of the `Replace` template that replaces a single item in an `AliasSeq` compile time sequence. It is marked `private` which limits its <a href="https://dlang.org/spec/attribute.html#visibility_attributes" target="_blank">visibility</a> to the module being defined, its interface is defined later.
+The code below shows the implementation for the internals of the `Replace` template that replaces a single item in an `AliasSeq` compile time sequence. It is marked `private` which limits its <a href="https://dlang.org/spec/attribute.html#visibility_attributes" target="_blank">visibility</a> to the module being defined; its interface is defined later.
 
 
 ```d
@@ -298,15 +297,15 @@ private template Replace(long i, long r, S, Args...)
 }
 ```
 
-Let's break down what's going on here. Firstly the declaration:
+Let's break down what's going on here. Firstly, the declaration:
 
 ```d
 private template Replace(long i, long r, S, Args...){/*... Code ...*/}
 ```
 
-Templates can have typed arguments in this case `long i` and `long r`. Here `r` is the index location to the item we want replaced, `i` is a candidate index, we check if `i == r` and if it is, we do a replacement.
+Templates can have typed arguments; in this case `long i` and `long r`. Here, `r` is the index location to the item we want replaced, `i` is a candidate index. We check if `i == r` and if it is, we do the replacement.
 
-We have an individual type `S` and then a variable number of types `Args...`. `S` is what we replace whatever is in `r` with and `Args` is the type sequence where the replacement will be done. Note that you can only have a variable number of template arguments at the end, and in such a situation `S` will always be assumed to be single element by the compiler, what is happening is essentially pattern matching. For example, if we compile this script:
+We have an individual type `S` and then a variable number of types `Args...`. `S` is what we replace whatever is in `r` with and `Args` is the type sequence where the replacement will be done. Note that you can have variable number of template arguments only at the end. In the code above, `S` will always be assumed to be a single element by the compiler. What is happening is essentially pattern matching. For example, if we compile this script:
 
 ```d
 alias AliasSeq(T...) = T;
@@ -336,7 +335,7 @@ Join!(lhs, rhs): (byte, ubyte, short, ushort)
 ```
 
 **Compiler-interpreter:**
-*If you are "weirded out" by the `void main(){}` at the end, it's because all our code is compile time and the `main` function is created for runtime, though we could put our code in `main`, we don't have to. To compile the script in a "standard way" we need a `main` function, but we can get rid of this by using the `-o-` flag to suppress the creation of an object (executable) file. If we do this we can delete the `main` function and compile using `dmd script.d -o-` (for dmd). There's nothing to "run" because we don't create an object file and everything we do happens at compile time a bit like an interpreted script.*
+*If you are "weirded out" by the `void main(){}` at the end, it is needed because although all our code is compile time, a `main` function is needed for run time. We could put our code in `main` but we don't have to. To compile the script in a "standard way" we need a `main` function, but we can get rid of this by using the `-o-` flag to suppress the creation of an object (executable) file. If we do this we can delete the `main` function and compile using `dmd script.d -o-` (for dmd). There's nothing to "run" because we don't create an object file and everything we do happens at compile time a bit like an interpreted script.*
 
 If we try to use this template instead:
 
@@ -347,7 +346,7 @@ template Join(L, R)
 }
 ```
 
-we will get a compiler error:
+we will get a compilation error:
 
 ```d
 Error: template instance Join!(byte, ubyte, short, ushort) 
@@ -365,7 +364,7 @@ template Join(L..., R...)
 
 we will get... `Error: variadic template parameter must be last`.
 
-The `Replace` template is recursive, and there are two conditions we care about. Firstly the termination, when `Args.length == 1` and then the continue condition when `Args.length > 1`. When `Args.length == 1` we terminate with:
+The `Replace` template is recursive, and there are two conditions we care about. Firstly the termination, when `Args.length == 1` and then the continuation when `Args.length > 1`. When `Args.length == 1` we terminate with:
 
 ```d
 static if(i == r)
@@ -392,7 +391,7 @@ static if(i == r)
 
 so we start at the end of the sequence and work our way backwards to the first element.
 
-There are two other conditions, the first of these is if we ever get a case when `Args.length == 0` i.e. `Args = AliasSeq!()` argument, and the other is if we get something else we don't expect (which may well be overkill) but is an example of using a `static assert` to trigger an error in a specific case. Before going further into the first of these cases let's look at the interface - the template that is meant to be called using a **template overload**:
+There are two other conditions: The first of these is if we ever get a case when `Args.length == 0` i.e. `Args == AliasSeq!()` argument, and the other is if we get something else we don't expect (which may well be overkill) but is an example of using a `static assert` to trigger an error in a specific case. Before going further into the first of these cases let's look at the interface - the template that is meant to be called using a **template overload**:
 
 ```d
 alias Replace(long r, S, Args...) = Replace!(Args.length - 1, r, S, Args);
@@ -443,9 +442,9 @@ Replace in Nothing: ()
 
 ### Replacing multiple items with an individual type
 
-In this section we introduce the concept of <a href="https://dlang.org/articles/mixin.html" target="_blank">string mixins</a>. String mixins are a little like macros in C. They allow the user to use strings to construct code and include them in scripts. Unlike macros in C, *"\[string mixins\] in text must form complete declarations, statements, or expressions"*, and they have other added protections that make them inherently safer than those in C. However in this case we are not creating runtime code from mixins but code for templates.
+In this section we introduce the concept of <a href="https://dlang.org/articles/mixin.html" target="_blank">string mixins</a>. String mixins are a little like macros in C. They allow the user to use strings to construct code and include them in scripts. Unlike macros in C, *"\[string mixins\] in text must form complete declarations, statements, or expressions"*, and they have additional protections that make them inherently safer than those in C. However, in this case we are not creating runtime code from mixins but code for templates.
 
-In D the usual method for concatenating strings is using `'~'` operator, however we have to be careful with this, `'~'` will interpret a number such as `0` as a null byte, so we use the `text` function to do concatenation \[<a href="https://forum.dlang.org/post/cwdkvwxyziunxwphvsqi@forum.dlang.org" target="_blank">reference</a>\]. The template for doing a `Replace` of multiple items with a single one is given below:
+In D the usual method for concatenating strings is using `'~'` operator; however, we have to be careful with this: `'~'` will interpret the integer `0` as a null byte, so we use the `text` function to do concatenation \[<a href="https://forum.dlang.org/post/cwdkvwxyziunxwphvsqi@forum.dlang.org" target="_blank">reference</a>\]. The template for doing a `Replace` of multiple items with a single one is given below:
 
 ```d
 import std.conv: text;
@@ -472,13 +471,13 @@ if(Args.length > 0)
 }
 ```
 
-Let's break this down. As we discussed in a <a href="../reading-idx-files-in-d/" target="_blank">previous article</a> all compile time variables are constants so when they are defined they can not be changed. In this case we iterate over all the numbers in `indices` and call the `Replace` template for single items on each of the indices. Since we can not store each iteration into the same (immutable) variable we generate a new compile time sequence each time, `x0, x1, ...xN` and we do this by referring to the previous sequence `Args, x0, ..., x(N-1)`. `static foreach` loops in D enclosed in single curly braces `{` are *not scoped*, it is the equivalent of pasting the code over and over each time. So we are in fact creating a series of sequences with different names and at the end effectively returning the final sequence from the template:
+Let's break this down. As we discussed in a <a href="../reading-idx-files-in-d/" target="_blank">previous article</a> all compile time variables are constants so they can not be changed once they are defined. In this case we iterate over all the numbers in `indices` and call the `Replace` template for single items on each of the indices. Since we can not store each iteration into the same (immutable) variable, we generate a new compile time sequence each time: `x0, x1, ...xN`. And we do this by referring to the previous sequence: `Args, x0, ..., x(N-1)`. `static foreach` loop bodies in D are *not scoped*; it is the equivalent of pasting the code over and over for each iteration. (The <a href="../reading-idx-files-in-d/" target="_blank">previous article</a> shows how double curly brackets are used to introduce scope for each iteration when desired.) So we are in fact creating a series of sequences with different names, effectively returning the final sequence from the template:
 
 ```d
 mixin(text(`alias Replace = x`, N - 1, `;`));
 ```
 
-The code also shows `debug` conditional compilation directives before each `pragma` statement which allows us only run these with the `-debug` flag in the dmd compiler. You may or may not have noticed that we introduced an `alias` keyword in our template declaration `template Replace(alias indices, S, Args...){/*... Code ...*/}`, this allows us to specify anything that is not a template and we don't have to give the type.
+The code also shows `debug` conditional compilation directives before each `pragma` statement which allows us to include these only when the code is compiled with the `-debug` dmd compiler switch. As you may have noticed, we introduced an `alias` keyword in our template declaration `template Replace(alias indices, S, Args...){/*... Code ...*/}`, this allows us to specify anything that is not a template and we don't have to provide the type.
 
 Using this `Replace` overload for the multiple replacement by a single item:
 
@@ -507,16 +506,16 @@ struct Tuple(T...)
 }
 ```
 
-This `struct` is special, it has one member, an `enum long` constant and no methods only templates aliases, perfect for our compile time needs. We will be able to use it as a *"container"* for types that can be passed along with `AliasSeq` without merging typelists. The `length` constant gives us the length of the typelist, the `get(long i)` template allows up to get the ith template parameter usage for a tuple `x` is `x.get!(i)`, and the `getTypes` method returns the typelist `T`.
+This `struct` is special: It has one member (an `enum long` constant), no methods, and some template instance aliases, perfect for our compile time needs. We will be able to use it as a *"container"* for types that can be passed along with `AliasSeq` without merging typelists. The `length` constant gives us the length of the typelist, and the `get(long i)` template allows up to get the ith template parameter. Usage for a tuple `x` is `x.get!(i)`, and the `getTypes` alias provides the original typelist `T`.
 
-Next we create a predicate trait that tells us whether something is a `Tuple` or not:
+Next, we create a predicate trait that tells us whether something is a `Tuple` or not:
 
 ```d
 enum bool isTuple(Tup...) = false;
 enum bool isTuple(Tup: Tuple!T, T...) = true;
 ```
 
-You might notice that this is slightly different from our previous predicate. Here we do a kind of "catchall" for types that are not `Tuple` to `false` and then Tuple types to `true`. Now let's see if this works *(D has unit testing capabilities but we will not be covering them here)*:
+You might notice that this is slightly different from our previous predicate. Here we define a kind of "catchall" for types that are not `Tuple` as `false`, and then provide a definition for Tuple types as `true`. Now let's see if this works *(D has unit testing capabilities but we will not be covering them here)*:
 
 ```d
 alias tupleConcat = AliasSeq!(real, Tuple!(tList));
@@ -592,7 +591,7 @@ template Replace(alias indices, S, Args...)
 if(Args.length > 0 && !isTuple!(S)){/*... Code ...*/}
 ```
 
-Notice that in addition to the `isTuple!(S)` constraint in the new `Replace` template there is an aditional constraint `indices.length == S.length`. We could have used a `static assert(indices.length == S.length, "... message ...");` in the template body but it's a design choice where cases with `indices.length != S.length` don't enter the template body. Instead we could create yet another overload for that case:
+Notice that in addition to the `isTuple!(S)` constraint in the new `Replace` template there is the aditional constraint `indices.length == S.length`. We could have used a `static assert(indices.length == S.length, "... message ...");` in the template body but it's a design choice where cases with `indices.length != S.length` don't enter the template body. Instead, we could create yet another overload for that case:
 
 ```
 template Replace(alias indices, S, Args...)
@@ -610,9 +609,9 @@ Testable with:
 
 ## Removing items from a compile time sequence
 
-### Removing an item from a compile time sequence
+### Removing a single item from a compile time sequence
 
-In this case we would like to remove the rth item from `Args`, the internal function in this very similar to the recursive internal function in the `Replace` case. Of course by now you know that this can be written in different ways, for example break up the cases for different lengths of `Args` to different templates using template constraints, note the use of `Nothing` here. 
+In this case we would like to remove the rth item from `Args`. The internal function in this case is very similar to the recursive internal function in the `Replace` case. Of course by now you know that this can be written in different ways, for example by breaking up the cases for different lengths of `Args` to different templates by using template constraints, note the use of `Nothing` here.
 
 ```d
 private template Remove(long i, long r, Args...)
@@ -649,7 +648,7 @@ the programmer interface is:
 alias Remove(long r, Args...) = Remove!(Args.length - 1, r, Args);
 ```
 
-we can check that it all works with:
+We can check that it all works with:
 
 ```d
 pragma(msg, "\nSequence: ", tList);
@@ -672,7 +671,7 @@ Removed item @ end (ushort) => Nothing: (bool, string, ubyte, short)
 
 ### Removing multiple items from a compile time sequence
 
-That's gravy, we built it directly from what we've learnt, now for multiple selection, using `alias` for specifying multiple items could be a bit too "general", lets see if we can use a `Tuple` to specify the indices this time. First add a template method for getting enums rather than types to our previous `Tuple` definition:
+That's gravy, we built it directly from what we've learnt. Using `alias` for specifying multiple items could be a bit too "general" for selecting multiple items. So, let's see if we can use a `Tuple` to specify the indices this time. First, we add a template method for getting enums rather than types to our previous `Tuple` definition:
 
 ```d
 struct Tuple(T...)
@@ -684,7 +683,7 @@ struct Tuple(T...)
 }
 ```
 
-Now specify the multiple `Remove` template:
+We can now specify the multiple `Remove` template:
 
 ```d
 template Remove(Indices, Args...)
@@ -720,9 +719,9 @@ output:
 Remove multiple items @Tuple!(0L, 2L, 4L): (string, short)
 ```
 
-## Insertion of types into compile time sequences
+## Inserting types into compile time sequences
 
-Insertions of single and multiple items is simple. The case for inserting a single type `E` at position `i` shifting the item at the previous `i` and everything to the right of it one space to the right is as follows:
+Inserting a single type or multiple types is simple. The case for inserting a single type `E` at position `i` can be achieved by concatenating all items before `i`, the new item(s), and all items after `i` (including `i` itself):
 
 ```d
 template Insert(long i, E, Args...)
@@ -746,7 +745,7 @@ if((i < Args.length) && (i > 0) && isTuple!E)
 }
 ```
 
-let's see if it works:
+Let's see if it works:
 
 ```d
 pragma(msg, "\nInitial sequence: ", tList);
@@ -767,7 +766,7 @@ Inserted sequence @ 1: (bool, int, long, ulong, string, ubyte, short, ushort)
 Inserted sequence @ ($ - 1): (bool, string, ubyte, short, int, long, ulong, ushort)
 ```
 
-That's it! The final case I leave as an exercise, here `I` is a `Tuple!(long[]...)` and `E` is a `Tuple!(T...)`.
+That's it! I leave the final case as an exercise: here, `I` is a `Tuple!(long[]...)` and `E` is a `Tuple!(T...)`.
 
 ```d
 template Insert(I, E, Args...)
